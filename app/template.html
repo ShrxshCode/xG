@@ -1,0 +1,362 @@
+<title>Shot xG Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Public+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: a pitch you click on the left, a scoreboard-style readout on the right; stacks on phones. */
+:root {
+  --bg: #f2f3ef;
+  --panel: #fbfbf8;
+  --ink: #16201b;
+  --ink2: #55605a;
+  --line: #d9dcd3;
+  --accent: #17653f;
+  --accent-ink: #ffffff;
+  --pitch-line: #8d978f;
+  --shot: #e0562a;
+  --warn: #9a4a06;
+  --r0: #f4f7fb; --r1: #cfe0f4; --r2: #8db9e8; --r3: #3f84cf; --r4: #0b3d82;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101412; --panel: #171c19; --ink: #eaf0ec; --ink2: #9aa7a0; --line: #2a322d;
+    --accent: #52c28a; --accent-ink: #08140d; --pitch-line: #5d6b63; --shot: #ff8a5c; --warn: #f0a85a;
+    --r0: #1a1f24; --r1: #1d3350; --r2: #235b99; --r3: #3f8fe0; --r4: #9cc8ff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101412; --panel: #171c19; --ink: #eaf0ec; --ink2: #9aa7a0; --line: #2a322d;
+  --accent: #52c28a; --accent-ink: #08140d; --pitch-line: #5d6b63; --shot: #ff8a5c; --warn: #f0a85a;
+  --r0: #1a1f24; --r1: #1d3350; --r2: #235b99; --r3: #3f8fe0; --r4: #9cc8ff;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; padding-inline: 16px; padding-block: 20px 32px; }
+.wrap { max-width: 1080px; margin-inline: auto; display: flex; flex-direction: column; gap: 20px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: 34px; line-height: 1.05; margin: 0; letter-spacing: 0.01em; }
+.lede { margin: 6px 0 0; color: var(--ink2); max-width: 62ch; }
+.main { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .main { grid-template-columns: minmax(0, 1fr); } }
+
+.pitchbox { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+canvas { display: block; width: 100%; aspect-ratio: 80 / 59; border-radius: 6px; cursor: crosshair; touch-action: manipulation; }
+canvas:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 13px; font-weight: 600; padding: 3px 8px; border-radius: 4px; transform: translate(-50%, -140%); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.legend { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 12px; color: var(--ink2); flex-wrap: wrap; }
+.ramp { width: 160px; height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--r0), var(--r1), var(--r2), var(--r3), var(--r4)); border: 1px solid var(--line); }
+.hint { margin: 6px 2px 0; font-size: 12px; color: var(--ink2); }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink2); font-weight: 600; }
+.big { font-family: var(--display); font-weight: 700; font-size: 92px; line-height: 0.95; font-variant-numeric: tabular-nums; }
+.big small { font-size: 36px; color: var(--ink2); margin-left: 2px; }
+.plain { margin: 4px 0 0; }
+.sub { color: var(--ink2); font-size: 13px; font-variant-numeric: tabular-nums; }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; }
+dt { color: var(--ink2); }
+dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.conf { font-size: 13px; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line); }
+.conf.low { color: var(--warn); border-color: var(--warn); }
+.controls { display: flex; flex-direction: column; gap: 12px; padding-top: 14px; border-top: 1px solid var(--line); }
+.group { display: flex; flex-direction: column; gap: 6px; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { flex: 1; font: inherit; font-size: 14px; padding: 8px 10px; background: transparent; color: var(--ink); border: 0; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.seg button:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+select { font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); width: 100%; }
+.foot { font-size: 12.5px; color: var(--ink2); max-width: 80ch; }
+.foot a { color: var(--ink2); }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Shot xG Map</h1>
+    <p class="lede">Click anywhere in the attacking half to see the chance a shot from that spot becomes a goal. Change the shot type, pressure and goalkeeper position to see how it moves.</p>
+  </header>
+
+  <div class="main">
+    <section class="pitchbox" aria-label="Pitch">
+      <canvas id="pitch" tabindex="0" aria-label="Attacking half of a football pitch. Click to place a shot, or use the arrow keys."></canvas>
+      <div class="tip" id="tip" hidden></div>
+      <div class="legend">
+        <span>xG</span><span>0%</span><div class="ramp"></div><span>50%+</span>
+        <span>Faded areas have few real shots behind them.</span>
+      </div>
+      <p class="hint">Hover to preview, click or tap to place the shot, arrow keys to nudge it by a yard.</p>
+    </section>
+
+    <aside class="panel" aria-live="polite">
+      <div>
+        <div class="eyebrow">Chance of a goal</div>
+        <div class="big" id="pct">--</div>
+        <p class="plain" id="plain"></p>
+        <div class="sub" id="xgnum"></div>
+      </div>
+      <dl>
+        <dt>Shot position</dt><dd id="pos"></dd>
+        <dt>Distance to goal</dt><dd id="dist"></dd>
+        <dt>Angle of the goal</dt><dd id="ang"></dd>
+        <dt>Keeper off the shot line</dt><dd id="off"></dd>
+      </dl>
+      <div class="conf" id="conf"></div>
+
+      <div class="controls">
+        <div class="group">
+          <span class="eyebrow">Shot</span>
+          <div class="seg" id="kindSeg">
+            <button type="button" data-v="foot" aria-pressed="true">Foot</button>
+            <button type="button" data-v="head" aria-pressed="false">Header</button>
+          </div>
+        </div>
+        <div class="group">
+          <span class="eyebrow">Defender</span>
+          <div class="seg" id="pressSeg">
+            <button type="button" data-v="free" aria-pressed="true">Free</button>
+            <button type="button" data-v="press" aria-pressed="false">Under pressure</button>
+          </div>
+        </div>
+        <div class="group">
+          <label class="eyebrow" for="keeper">Goalkeeper</label>
+          <select id="keeper"></select>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <p class="foot" id="foot"></p>
+</div>
+
+<script>
+const DATA = __DATA__;
+
+// ---- The pitch uses StatsBomb coordinates: 120 long (goal at x = 120), 80 wide (y = 0 to 80). ----
+const VIEW_TOP = 123;          // the picture shows x from 64 up to 123 (a little behind the goal line)
+const NY = DATA.ny;            // grid points across the width (81)
+const X0 = DATA.x0, X1 = DATA.x1;
+const NX = X1 - X0 + 1;
+
+const state = { kind: "foot", press: "free", keeper: 0, shot: { x: 108, y: 40 }, hover: null };
+
+const canvas = document.getElementById("pitch");
+const ctx = canvas.getContext("2d");
+const tip = document.getElementById("tip");
+
+// ---- Looking up the model's answer ----
+function gridValue(ix, iy) {
+  const key = state.kind + "|" + state.press + "|" + state.keeper;
+  return DATA.grids[key][ix * NY + iy] / 1000;
+}
+// Blend the four nearest precomputed points so the number changes smoothly as you move.
+function xgAt(x, y) {
+  const fx = Math.min(Math.max(x, X0), X1) - X0;
+  const fy = Math.min(Math.max(y, 0), NY - 1);
+  const ix = Math.min(Math.floor(fx), NX - 2), iy = Math.min(Math.floor(fy), NY - 2);
+  const tx = fx - ix, ty = fy - iy;
+  const a = gridValue(ix, iy), b = gridValue(ix + 1, iy), c = gridValue(ix, iy + 1), d = gridValue(ix + 1, iy + 1);
+  return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+}
+function nearbyAt(x, y) {
+  const ix = Math.round(Math.min(Math.max(x, X0), X1)) - X0;
+  const iy = Math.round(Math.min(Math.max(y, 0), NY - 1));
+  return DATA.nearby[ix * NY + iy];
+}
+const LOW_SHOTS = 15;   // fewer real shots than this within 3 yards = low confidence
+
+// ---- The two numbers the model's story is built on ----
+function distanceToGoal(x, y) { return Math.hypot(120 - x, 40 - y); }
+function goalAngle(x, y) {
+  const a = Math.max(Math.hypot(120 - x, 36 - y), 0.01), b = Math.max(Math.hypot(120 - x, 44 - y), 0.01);
+  const cos = Math.min(1, Math.max(-1, (a * a + b * b - 64) / (2 * a * b)));
+  return Math.acos(cos) * 180 / Math.PI;
+}
+function keeperOffset(x, y, kx, ky) {
+  const lx = 120 - x, ly = 40 - y;
+  const len = Math.max(Math.hypot(lx, ly), 0.01);
+  return Math.abs(lx * (ky - y) - ly * (kx - x)) / len;
+}
+
+// ---- Colors come from the CSS tokens, so light and dark mode both work ----
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function hex(c) { return [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)); }
+function ramp(v) {   // v from 0 to 1 -> color along r0..r4
+  const stops = ["--r0", "--r1", "--r2", "--r3", "--r4"].map(n => hex(css(n)));
+  const t = Math.min(Math.max(v, 0), 1) * (stops.length - 1);
+  const i = Math.min(Math.floor(t), stops.length - 2), f = t - i;
+  return stops[i].map((c, k) => c + (stops[i + 1][k] - c) * f);
+}
+
+// ---- Drawing ----
+let W = 0, scale = 1;
+const heat = document.createElement("canvas");
+heat.width = NY; heat.height = NX;
+
+function px(y) { return y * scale; }
+function py(x) { return (VIEW_TOP - x) * scale; }
+
+function drawHeat() {
+  const img = heat.getContext("2d").createImageData(NY, NX);
+  const bg = hex(css("--panel"));
+  for (let ix = 0; ix < NX; ix++) {
+    for (let iy = 0; iy < NY; iy++) {
+      const x = X0 + ix, y = iy;
+      const c = ramp(gridValue(ix, iy) / 0.5);
+      const sure = nearbyAt(x, y) >= LOW_SHOTS ? 1 : 0.3;   // fade spots with few real shots
+      const row = X1 - x;                                   // row 0 is the goal line
+      const o = (row * NY + iy) * 4;
+      img.data[o] = bg[0] + (c[0] - bg[0]) * sure;
+      img.data[o + 1] = bg[1] + (c[1] - bg[1]) * sure;
+      img.data[o + 2] = bg[2] + (c[2] - bg[2]) * sure;
+      img.data[o + 3] = 255;
+    }
+  }
+  heat.getContext("2d").putImageData(img, 0, 0);
+}
+
+function draw() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const dpr = canvas.width / W;
+  ctx.scale(dpr, dpr);
+
+  // Heat map, smoothed. Clipped so nothing shows behind the goal line.
+  ctx.fillStyle = css("--panel");
+  ctx.fillRect(0, 0, W, W * 59 / 80);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, py(120), W, W * 59 / 80);
+  ctx.clip();
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(heat, px(-0.5), py(X1 + 0.5), NY * scale, NX * scale);
+  ctx.restore();
+
+  // Pitch lines.
+  ctx.strokeStyle = css("--pitch-line");
+  ctx.lineWidth = Math.max(1.2, scale * 0.14);
+  const line = pts => { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(px(p[0]), py(p[1])) : ctx.moveTo(px(p[0]), py(p[1]))); ctx.stroke(); };
+  line([[0, 120], [80, 120]]);                                  // goal line
+  line([[18, 120], [18, 102], [62, 102], [62, 120]]);           // penalty box
+  line([[30, 120], [30, 114], [50, 114], [50, 120]]);           // six-yard box
+  line([[36, 120], [36, 122], [44, 122], [44, 120]]);           // the goal
+  ctx.beginPath(); ctx.arc(px(40), py(108), scale * 0.35, 0, 7); ctx.fillStyle = css("--pitch-line"); ctx.fill();  // penalty spot
+
+  // The two lines from the shot to the posts. The gap between them is the "angle".
+  const s = state.shot;
+  ctx.strokeStyle = css("--shot");
+  ctx.globalAlpha = 0.55;
+  ctx.setLineDash([scale * 0.6, scale * 0.5]);
+  line([[s.y, s.x], [36, 120]]);
+  line([[s.y, s.x], [44, 120]]);
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+
+  // Keeper.
+  const k = DATA.keepers[state.keeper];
+  ctx.beginPath(); ctx.arc(px(k.y), py(k.x), scale * 0.9, 0, 7);
+  ctx.fillStyle = css("--ink"); ctx.fill();
+  ctx.fillStyle = css("--panel"); ctx.font = "600 " + Math.round(scale * 1.05) + "px " + css("--body");
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("GK", px(k.y), py(k.x) + 0.5);
+
+  // The shot.
+  ctx.beginPath(); ctx.arc(px(s.y), py(s.x), scale * 1.1, 0, 7);
+  ctx.fillStyle = css("--shot"); ctx.fill();
+  ctx.lineWidth = Math.max(2, scale * 0.25); ctx.strokeStyle = css("--panel"); ctx.stroke();
+}
+
+function resize() {
+  const rect = canvas.getBoundingClientRect();
+  W = rect.width;
+  scale = W / 80;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(W * 59 / 80 * dpr);
+  draw();
+}
+
+// ---- The readout panel ----
+function update() {
+  const s = state.shot, k = DATA.keepers[state.keeper];
+  const p = xgAt(s.x, s.y);
+  document.getElementById("pct").innerHTML = Math.round(p * 100) + "<small>%</small>";
+  const oneIn = Math.max(1, Math.round(1 / Math.max(p, 0.001)));
+  document.getElementById("plain").textContent = "About 1 in " + oneIn + " shots like this go in.";
+  const ratio = p / DATA.meta.goal_rate;
+  document.getElementById("xgnum").textContent = "xG " + p.toFixed(3) + "  |  " + ratio.toFixed(1) + "x the average shot (" + (DATA.meta.goal_rate * 100).toFixed(1) + "%)";
+  document.getElementById("pos").textContent = "x " + s.x.toFixed(0) + ", y " + s.y.toFixed(0);
+  document.getElementById("dist").textContent = distanceToGoal(s.x, s.y).toFixed(1) + " yards";
+  document.getElementById("ang").textContent = goalAngle(s.x, s.y).toFixed(1) + " degrees";
+  document.getElementById("off").textContent = keeperOffset(s.x, s.y, k.x, k.y).toFixed(1) + " yards";
+  const n = nearbyAt(s.x, s.y);
+  const conf = document.getElementById("conf");
+  if (n < LOW_SHOTS) {
+    conf.className = "conf low";
+    conf.textContent = "Low confidence: only " + n + " real shots came from within 3 yards of here, so this number is mostly a guess.";
+  } else {
+    conf.className = "conf";
+    conf.textContent = n + " real shots came from within 3 yards of here.";
+  }
+  draw();
+}
+
+function setShot(x, y) {
+  state.shot = { x: Math.min(Math.max(x, X0), 120), y: Math.min(Math.max(y, 0), 80) };
+  update();
+}
+function pointerToPitch(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: VIEW_TOP - (e.clientY - r.top) / scale, y: (e.clientX - r.left) / scale, left: e.clientX - r.left, top: e.clientY - r.top };
+}
+
+canvas.addEventListener("pointermove", e => {
+  const p = pointerToPitch(e);
+  if (p.x < X0 || p.x > 120) { tip.hidden = true; return; }
+  tip.hidden = false;
+  tip.textContent = "xG " + xgAt(p.x, p.y).toFixed(2);
+  tip.style.left = (p.left + 10) + "px";
+  tip.style.top = (p.top + 10) + "px";
+});
+canvas.addEventListener("pointerleave", () => { tip.hidden = true; });
+canvas.addEventListener("click", e => {
+  const p = pointerToPitch(e);
+  if (p.x < X0 || p.x > 120) return;
+  setShot(p.x, p.y);
+});
+canvas.addEventListener("keydown", e => {
+  const step = e.shiftKey ? 5 : 1;
+  const moves = { ArrowUp: [step, 0], ArrowDown: [-step, 0], ArrowLeft: [0, -step], ArrowRight: [0, step] };
+  if (moves[e.key]) { e.preventDefault(); setShot(state.shot.x + moves[e.key][0], state.shot.y + moves[e.key][1]); }
+});
+
+// ---- Controls ----
+function wireSegment(id, field) {
+  const buttons = document.querySelectorAll("#" + id + " button");
+  buttons.forEach(b => b.addEventListener("click", () => {
+    state[field] = b.dataset.v;
+    buttons.forEach(o => o.setAttribute("aria-pressed", String(o === b)));
+    drawHeat(); update();
+  }));
+}
+wireSegment("kindSeg", "kind");
+wireSegment("pressSeg", "press");
+
+const select = document.getElementById("keeper");
+DATA.keepers.forEach((k, i) => { const o = document.createElement("option"); o.value = i; o.textContent = k.name; select.appendChild(o); });
+select.addEventListener("change", () => { state.keeper = Number(select.value); drawHeat(); update(); });
+
+// ---- Footer ----
+const m = DATA.meta;
+document.getElementById("foot").textContent =
+  "An XGBoost model trained on " + m.shots.toLocaleString() + " shots from " + m.matches.toLocaleString() +
+  " men's matches (penalties left out). On matches it had not seen it scored an AUC of " + (m.auc ? m.auc.toFixed(2) : "n/a") +
+  (m.sb_auc ? ", against " + m.sb_auc.toFixed(2) + " for StatsBomb's own xG" : "") +
+  ". The answers are precomputed on a one-yard grid. Data provided by StatsBomb (open data).";
+
+// ---- Start ----
+new ResizeObserver(resize).observe(canvas);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { drawHeat(); draw(); });
+new MutationObserver(() => { drawHeat(); draw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+drawHeat();
+resize();
+update();
+</script>

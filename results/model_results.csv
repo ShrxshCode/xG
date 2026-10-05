@@ -1,0 +1,5 @@
+model,AUC,log_loss,predicted_goals,real_goals
+Logistic (no keeper),0.78,0.2812,849.0,921
+Logistic + keeper,0.795,0.2747,856.0,921
+XGBoost,0.801,0.2704,854.0,921
+StatsBomb xG,0.814,0.2637,855.0,921
